@@ -88,3 +88,44 @@ def top13(data: pd.DataFrame, percent_col: str, top_n: int = TOP_N, exclude_indo
     }])
 
     return pd.concat([top13_df, others_row], ignore_index=True)
+
+
+# ─── RUSSIA PORT-LEVEL ANALYSIS ──────────────────────────────
+PORT_MAPPING = {
+    "RUFIP": "VLADIVOSTOK",
+    "RUVVO": "VLADIVOSTOK (COMMERCIAL PORT)",
+    "RULED": "ST. PETERSBURG",
+    "RUVFP": "VLADIVOSTOK",
+    "RUVLV": "VLADIVOSTOK",
+    "RUVST": "VLADIVOSTOK",
+}
+
+def analyze_russia(df: pd.DataFrame):
+    """
+    Filter rows for Russia (COUNTRY == 'RU'), group by PORT,
+    and return (import_df, export_df) broken down per port.
+    """
+    df_ru = df[df["COUNTRY"].str.upper() == "RU"].copy()
+
+    if df_ru.empty:
+        return pd.DataFrame(), pd.DataFrame()
+
+    df_ru["COUNTRY_NAME"] = "RUSSIA"
+    grouped = df_ru.groupby(["COUNTRY_NAME", "PORT"], as_index=False).sum(numeric_only=True)
+    grouped["PORT_NAME"] = grouped["PORT"].map(PORT_MAPPING).fillna(grouped["PORT"])
+
+    total_import = grouped["TOTAL_IMPORT"].sum()
+    total_export = grouped["TOTAL_EXPORT"].sum()
+
+    grouped["%IMPORT"] = (grouped["TOTAL_IMPORT"] / total_import * 100) if total_import else 0
+    grouped["%EXPORT"] = (grouped["TOTAL_EXPORT"] / total_export * 100) if total_export else 0
+
+    import_ru = grouped[
+        ["COUNTRY_NAME", "PORT", "PORT_NAME", "FULL_IMPORT", "EMPTY_IMPORT", "TOTAL_IMPORT", "%IMPORT"]
+    ].sort_values("%IMPORT", ascending=False).reset_index(drop=True)
+
+    export_ru = grouped[
+        ["COUNTRY_NAME", "PORT", "PORT_NAME", "FULL_EXPORT", "EMPTY_EXPORT", "TOTAL_EXPORT", "%EXPORT"]
+    ].sort_values("%EXPORT", ascending=False).reset_index(drop=True)
+
+    return import_ru, export_ru
